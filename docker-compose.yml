@@ -1,0 +1,71 @@
+services:
+  api:
+    build: ./api
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_ENV=local
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://storage:9000
+      - SQS_ENDPOINT=http://queue:9324
+      - S3_UPLOADS_BUCKET=uploads-bucket
+      - SQS_QUEUE_URL=http://queue:9324/000000000000/insight-jobs
+    depends_on:
+      - storage
+      - queue
+
+  worker:
+    build: ./worker
+    environment:
+      - APP_ENV=local
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - S3_ENDPOINT=http://storage:9000
+      - SQS_ENDPOINT=http://queue:9324
+      - SQS_QUEUE_URL=http://queue:9324/000000000000/insight-jobs
+    depends_on:
+      - storage
+      - queue
+
+  storage:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000" # API port
+      - "9001:9001" # Console port (Web UI)
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+
+  # 4. Helper to Create S3 Buckets automatically
+  # (MinIO doesn't create buckets by default, this script does it for us)
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - storage
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      /usr/bin/mc alias set myminio http://storage:9000 minioadmin minioadmin;
+      /usr/bin/mc mb myminio/uploads-bucket;
+      /usr/bin/mc mb myminio/results-bucket;
+      exit 0;
+      "
+
+  # 5. Local SQS (ElasticMQ)
+  queue:
+    image: softwaremill/elasticmq-native
+    ports:
+      - "9324:9324" # API
+      - "9325:9325" # UI
+    volumes:
+      - ./elasticmq.conf:/opt/elasticmq.conf
+
+volumes:
+  minio_data:
+  
