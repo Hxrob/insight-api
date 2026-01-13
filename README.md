@@ -72,6 +72,22 @@ Client → API (Go) → S3 (MinIO) → SQS (ElasticMQ) → Worker (Python) → R
 - Go 1.25.4+ (for local API development)
 - Python 3.12+ (for local worker development)
 
+### Repository Setup
+
+If you're cloning this repository, you'll need to set up the Python virtual environment:
+
+```bash
+cd worker
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+For local development without Docker, you can test the worker directly:
+```bash
+python process.py path/to/image.jpg
+```
+
 ### Running the Stack
 
 1. **Start all services**:
@@ -181,8 +197,11 @@ insight-api/
 │   └── Dockerfile       # Worker container definition
 ├── docker-compose.yml   # Local development orchestration
 ├── elasticmq.conf       # ElasticMQ configuration
+├── .gitignore           # Git ignore rules (excludes venv/, etc.)
 └── README.md            # This file
 ```
+
+**Note**: The `worker/venv/` directory is intentionally excluded from version control. Each developer should create their own virtual environment using `requirements.txt`.
 
 ## Production Deployment
 
