@@ -1,0 +1,108 @@
+name: Deploy InsightAPI to AWS ECS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1                   # Change if your region is different
+  ECR_REPOSITORY: insight-api             # Your ECR repository name
+  CLUSTER_NAME: insight-api-cluster       # Your ECS cluster name
+
+jobs:
+  deploy-api:
+    name: Build & Deploy Go API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push API Image
+        id: build-api-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: api-${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./api
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download current API Task Definition
+        run: |
+          aws ecs describe-task-definition --task-definition insight-api-task --query taskDefinition > task-def-api.json
+
+      - name: Render Amazon ECS Task Definition
+        id: render-api-container
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def-api.json
+          container-name: insight-api-container # Must match the container name in your task definition
+          image: ${{ steps.build-api-image.outputs.image }}
+
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-api-container.outputs.task-definition }}
+          service: insight-api-service
+          cluster: ${{ env.CLUSTER_NAME }}
+          wait-for-service-stability: true
+
+  deploy-worker:
+    name: Build & Deploy Python Worker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Worker Image
+        id: build-worker-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: worker-${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./worker
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download current Worker Task Definition
+        run: |
+          aws ecs describe-task-definition --task-definition insight-worker-task --query taskDefinition > task-def-worker.json
+
+      - name: Render Amazon ECS Task Definition
+        id: render-worker-container
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def-worker.json
+          container-name: insight-worker-container # Must match the container name in your task definition
+          image: ${{ steps.build-worker-image.outputs.image }}
+
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-worker-container.outputs.task-definition }}
+          service: insight-worker-service
+          cluster: ${{ env.CLUSTER_NAME }}
+          wait-for-service-stability: true
