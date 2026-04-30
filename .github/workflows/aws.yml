@@ -41,7 +41,9 @@ jobs:
 
       - name: Download current API Task Definition
         run: |
-          aws ecs describe-task-definition --task-definition insight-api-task --query taskDefinition > task-def-api.json
+          aws ecs describe-task-definition --task-definition insight-api-task --query taskDefinition > temp-task-def-api.json
+          # Use jq to remove incompatible fields
+          jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' temp-task-def-api.json > task-def-api.json
 
       - name: Render Amazon ECS Task Definition
         id: render-api-container
@@ -89,7 +91,9 @@ jobs:
 
       - name: Download current Worker Task Definition
         run: |
-          aws ecs describe-task-definition --task-definition insight-worker-task --query taskDefinition > task-def-worker.json
+          aws ecs describe-task-definition --task-definition insight-worker-task --query taskDefinition > temp-task-def-worker.json
+          # Use jq to remove incompatible fields
+          jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' temp-task-def-worker.json > task-def-worker.json
 
       - name: Render Amazon ECS Task Definition
         id: render-worker-container
