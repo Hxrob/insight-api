@@ -6,9 +6,9 @@ on:
       - main
 
 env:
-  AWS_REGION: us-east-1                   # Change if your region is different
-  ECR_REPOSITORY: insight-api             # Your ECR repository name
-  CLUSTER_NAME: insight-api-cluster       # Your ECS cluster name
+  AWS_REGION: us-east-1                   
+  ECR_REPOSITORY: insight-api                    # ECR repository name
+  CLUSTER_NAME: knowledgeable-shark-taybln       # ECS cluster name
 
 jobs:
   deploy-api:
